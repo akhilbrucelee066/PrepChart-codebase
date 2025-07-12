@@ -1,0 +1,49 @@
+{% extends "base.html" %} {% block title %}Home{% endblock %} {% block content
+%}
+<h1>PrepChart</h1>
+
+<div class="upload-section">
+  <h2>Upload CSV File</h2>
+  <form
+    action="{{ url_for('upload_chart') }}"
+    method="POST"
+    enctype="multipart/form-data"
+    id="uploadForm"
+  >
+    <div class="drop-zone" id="dropZone">
+      <p>Drag & drop your CSV file here or click to select</p>
+      <input type="file" name="file" accept=".csv" id="fileInput" required />
+    </div>
+  </form>
+</div>
+
+<div class="charts-list">
+  <h2>Your Charts</h2>
+  {% if charts %} {% for id, chart in charts.items() %}
+  <div class="chart-card">
+    <h3>{{ chart.name }}</h3>
+    <p>Uploaded: {{ chart.upload_date }}</p>
+    <div class="chart-actions">
+      <a href="{{ url_for('view_chart', chart_id=id) }}" class="btn"
+        >View Chart</a
+      >
+      <form
+        action="{{ url_for('delete_chart', chart_id=id) }}"
+        method="POST"
+        style="display: inline"
+      >
+        <button
+          type="submit"
+          class="btn btn-danger"
+          onclick="return confirm('Are you sure you want to delete this chart?')"
+        >
+          Delete
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %} {% else %}
+  <p>No charts uploaded yet. Upload your first CSV file above!</p>
+  {% endif %}
+</div>
+{% endblock %}

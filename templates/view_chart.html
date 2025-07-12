@@ -1,0 +1,234 @@
+{% extends "base.html" %} {% block title %}View Chart - {{ chart.name }}{%
+endblock %} {% block content %}
+<div class="view-chart-section">
+  <div class="chart-header">
+    <h1>{{ chart.name }}</h1>
+    <div class="chart-actions">
+      <a href="{{ url_for('index') }}" class="btn btn-secondary"
+        >Back to Charts</a
+      >
+    </div>
+  </div>
+
+  <div class="progress-section">
+    <div class="progress-stats">
+      <div class="difficulty-stats">
+        <div class="stat-item">
+          <span class="difficulty-tag difficulty-EASY">Easy</span>
+          <span class="stat-numbers"
+            >{{ progress_stats.completed_by_difficulty.EASY }}/{{
+            progress_stats.total_by_difficulty.EASY }}</span
+          >
+        </div>
+        <div class="stat-item">
+          <span class="difficulty-tag difficulty-MEDIUM">Medium</span>
+          <span class="stat-numbers"
+            >{{ progress_stats.completed_by_difficulty.MEDIUM }}/{{
+            progress_stats.total_by_difficulty.MEDIUM }}</span
+          >
+        </div>
+        <div class="stat-item">
+          <span class="difficulty-tag difficulty-HARD">Hard</span>
+          <span class="stat-numbers"
+            >{{ progress_stats.completed_by_difficulty.HARD }}/{{
+            progress_stats.total_by_difficulty.HARD }}</span
+          >
+        </div>
+      </div>
+      <div class="progress-info">
+        <span class="progress-percentage"
+          >{{ "%.1f"|format(progress) }}% Complete</span
+        >
+      </div>
+    </div>
+    <div class="progress-bar">
+      <div class="progress" style="width: {{ progress }}%">
+        <span class="progress-text">{{ "%.1f"|format(progress) }}%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-content">
+    <div class="chart-table">
+      <table>
+        <thead>
+          <tr>
+            <th>
+              <input
+                type="checkbox"
+                id="selectAll"
+                class="task-checkbox"
+                title="Select All"
+              />
+              <label for="selectAll" class="select-all-label">Status</label>
+            </th>
+            {% for header in headers %}
+            <th>{{ header }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr data-index="{{ loop.index0 }}">
+            <td>
+              <input
+                type="checkbox"
+                class="task-checkbox"
+                {%
+                if
+                progress_data[loop.index0]
+                %}checked{%
+                endif
+                %}
+              />
+            </td>
+            <td>
+              <span class="difficulty-tag difficulty-{{ row[0] }}"
+                >{{ row[0] }}</span
+              >
+            </td>
+            <td>{{ row[1] }}</td>
+            <td>{{ "%.1f"|format(row[2]) }}</td>
+            <td>{{ "%.2f"|format(row[3]) }}</td>
+            <td>
+              <a href="{{ row[4] }}" target="_blank" class="btn btn-sm"
+                >View Problem</a
+              >
+            </td>
+            <td>{{ row[5] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const selectAllCheckbox = document.getElementById("selectAll");
+    const taskCheckboxes = document.querySelectorAll(
+      "tr[data-index] .task-checkbox"
+    );
+    const progressBar = document.querySelector(".progress");
+    const progressText = document.querySelector(".progress-text");
+    const progressPercentage = document.querySelector(".progress-percentage");
+    const difficultyStats = {
+      EASY: document
+        .querySelector(".difficulty-EASY")
+        .parentElement.querySelector(".stat-numbers"),
+      MEDIUM: document
+        .querySelector(".difficulty-MEDIUM")
+        .parentElement.querySelector(".stat-numbers"),
+      HARD: document
+        .querySelector(".difficulty-HARD")
+        .parentElement.querySelector(".stat-numbers"),
+    };
+
+    // Function to update all stats
+    function updateStats() {
+      const totalCheckboxes = taskCheckboxes.length;
+      const checkedCheckboxes = Array.from(taskCheckboxes).filter(
+        (cb) => cb.checked
+      ).length;
+      const progress = ((checkedCheckboxes / totalCheckboxes) * 100).toFixed(1);
+
+      // Update progress bar
+      progressBar.style.width = progress + "%";
+      progressPercentage.textContent = `${progress}% Complete`;
+      progressText.textContent = `${progress}%`;
+
+      // Update difficulty stats
+      const difficulties = { EASY: [0, 0], MEDIUM: [0, 0], HARD: [0, 0] };
+      taskCheckboxes.forEach((cb, index) => {
+        const difficulty = document
+          .querySelector(`tr[data-index="${index}"] .difficulty-tag`)
+          .textContent.trim()
+          .toUpperCase();
+        difficulties[difficulty][1]++;
+        if (cb.checked) difficulties[difficulty][0]++;
+      });
+
+      for (const [diff, counts] of Object.entries(difficulties)) {
+        if (difficultyStats[diff]) {
+          difficultyStats[diff].textContent = `${counts[0]}/${counts[1]}`;
+        }
+      }
+    }
+
+    // Function to handle individual checkbox changes
+    function handleCheckboxChange(checkbox) {
+      const row = checkbox.closest("tr");
+      const rowIndex = row.dataset.index;
+      const isChecked = checkbox.checked;
+
+      // Update UI
+      row.style.backgroundColor = isChecked ? "#2d4a3e" : "";
+      updateStats();
+      updateSelectAllState();
+
+      // Send update to server
+      fetch(`/update_progress/{{ chart_id }}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          rowIndex: parseInt(rowIndex),
+          isChecked: isChecked,
+        }),
+      }).catch((error) => {
+        console.error("Error:", error);
+      });
+    }
+
+    // Function to update "Select All" checkbox state
+    function updateSelectAllState() {
+      const allCheckboxes = Array.from(taskCheckboxes);
+      const allChecked = allCheckboxes.every((cb) => cb.checked);
+      const someChecked = allCheckboxes.some((cb) => cb.checked);
+
+      selectAllCheckbox.checked = allChecked;
+      selectAllCheckbox.indeterminate = someChecked && !allChecked;
+    }
+
+    // Handle "Select All" checkbox changes
+    selectAllCheckbox.addEventListener("change", function () {
+      const isChecked = this.checked;
+
+      // Update UI
+      taskCheckboxes.forEach((checkbox) => {
+        if (checkbox.checked !== isChecked) {
+          checkbox.checked = isChecked;
+          const row = checkbox.closest("tr");
+          row.style.backgroundColor = isChecked ? "#2d4a3e" : "";
+
+          // Send individual update to server
+          const rowIndex = row.dataset.index;
+          fetch(`/update_progress/{{ chart_id }}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              rowIndex: parseInt(rowIndex),
+              isChecked: isChecked,
+            }),
+          }).catch((error) => console.error("Error:", error));
+        }
+      });
+
+      // Update all stats
+      updateStats();
+    });
+
+    // Handle individual checkbox changes
+    taskCheckboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", () => handleCheckboxChange(checkbox));
+    });
+
+    // Initialize select all state
+    updateSelectAllState();
+  });
+</script>
+{% endblock %}
